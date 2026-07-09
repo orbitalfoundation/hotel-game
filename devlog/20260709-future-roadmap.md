@@ -81,3 +81,37 @@ The design question underneath: *what pressures make it fun?* — list the
 scenarios first, then check whether the sim's vocabulary (tasks,
 capabilities, capacity, patience) can express them, extending it where it
 can't (inventory, money, fire/water as spreading area states).
+
+## Rich characters and LLM-driven minds
+
+Today's guests are a name + party size + a dog flag; staff are a name and a
+role. That's thin. What we want:
+
+- **Guest archetypes with real backstories**: a blocked writer who never
+  leaves the room and orders endless coffee; an artist sketching in the
+  lobby; a wealthy CEO with impossible standards and a fat comp budget; a
+  crazy musician *with entourage* (a party that's really five linked
+  parties, noise complaints radiating from their floor); a crew of flight
+  attendants and pilots cutting loose (arrive together at midnight, hit
+  the bar hard, sleep till noon, hair-trigger checkout). The archetype
+  drives the *need distribution* — each one leans on a different hotel
+  subsystem, so who checks in IS the difficulty dial. Entourages/groups
+  need a small extension: linked parties that act (and get angry) together.
+- **Staff with stories too**: the housekeeper studying for exams (slower on
+  break days, brilliant in a crisis), the front-desk romantic, the veteran
+  engineer who grumbles but never fails, feuds and friendships that affect
+  who works well together. Staff stories turn roster decisions into drama —
+  very *Strandhotellet* / *White Lotus* below-stairs plotting.
+- **LLM-driven agent minds**: right now every agent is heuristic; only the
+  manager can be Claude. The fun version: LLM minds for *select* characters
+  — the drama guests, maybe one staff member per day — deciding needs,
+  reactions, and dialogue in character, while the crowd stays heuristic
+  (the cloudreef "cognition budget" idea, applied socially). Mechanically
+  this is the same seam as the manager: compact snapshot in, a structured
+  intent out, published as ordinary bus events. Dialogue surfaces through
+  the existing toast/hover overlay (guests could *say* things in-world).
+  A per-day token budget keeps it sane; archetype prompt cards keep it
+  cheap (one system prompt per archetype, cached).
+
+Backstories are also what make the scenario days land: the hockey team
+isn't a spawn rate, it's twelve linked guests with one shared mood.
