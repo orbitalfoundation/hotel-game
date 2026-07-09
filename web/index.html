@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lita Hotels!</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.148.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.148.0/examples/jsm/",
+    "@orbitalfoundation/bus": "/orbital/orbital-bus/packages/bus/index.js",
+    "@orbitalfoundation/utils": "/orbital/orbital-bus/packages/utils/index.js",
+    "@orbitalfoundation/spatial": "/orbital/orbital-spatial/src/index.js"
+  }
+}
+</script>
+<style>
+  :root {
+    --panel: rgba(16, 20, 28, 0.88);
+    --ink: #e8ecf2;
+    --dim: #8a93a4;
+    --accent: #ffb454;
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0b0e14; color: var(--ink);
+    font: 14px/1.45 "Avenir Next", "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  #volume001 { position: fixed; inset: 0; }
+
+  /* ---- picker ---- */
+  #picker { position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 28px; z-index: 30;
+    background: radial-gradient(ellipse at 50% 30%, #17203a 0%, #0b0e14 70%); }
+  #picker h1 { font-size: 52px; margin: 0; letter-spacing: 1px; }
+  #picker h1 em { color: var(--accent); font-style: normal; }
+  #picker p.tag { color: var(--dim); margin: -18px 0 0; }
+  #cards { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; max-width: 1100px; }
+  .card { width: 190px; padding: 18px 16px; border-radius: 14px; cursor: pointer;
+    background: var(--panel); border: 1px solid #2a3446; transition: transform .15s, border-color .15s; }
+  .card:hover { transform: translateY(-4px); border-color: var(--accent); }
+  .card .swatch { height: 54px; border-radius: 8px; margin-bottom: 12px; }
+  .card b { display: block; font-size: 15px; margin-bottom: 4px; }
+  .card span { color: var(--dim); font-size: 12px; }
+
+  /* ---- HUD ---- */
+  #hud { position: fixed; top: 0; left: 0; bottom: 0; width: 340px; z-index: 20;
+    background: var(--panel); backdrop-filter: blur(6px); border-right: 1px solid #2a3446;
+    display: none; flex-direction: column; padding: 14px; gap: 10px; overflow: hidden; }
+  #hud header { display: flex; justify-content: space-between; align-items: baseline; }
+  #hud header h2 { margin: 0; font-size: 18px; }
+  #hud header .clock { font-variant-numeric: tabular-nums; color: var(--accent); font-size: 18px; }
+  #meters { display: flex; gap: 8px; }
+  .meter { flex: 1; background: #131a26; border-radius: 8px; padding: 8px 10px; }
+  .meter .v { font-size: 20px; font-weight: 600; }
+  .meter .l { font-size: 11px; color: var(--dim); }
+  #controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  #controls button { background: #1d2635; color: var(--ink); border: 1px solid #2a3446;
+    border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+  #controls button.on { border-color: var(--accent); color: var(--accent); }
+  #controls input[type=range] { width: 90px; }
+  #controls label { font-size: 11px; color: var(--dim); }
+  #tabs { display: flex; gap: 4px; }
+  #tabs button { flex: 1; background: none; border: none; border-bottom: 2px solid #2a3446;
+    color: var(--dim); padding: 5px 0; cursor: pointer; font-size: 12px; }
+  #tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
+  #panel { flex: 1; overflow-y: auto; font-size: 12px; }
+  #panel .row { padding: 5px 6px; border-radius: 6px; margin-bottom: 3px; background: #131a26; }
+  #panel .row small { color: var(--dim); }
+  #panel .warn { border-left: 3px solid var(--bad); }
+  #panel .ok { border-left: 3px solid var(--good); }
+  .hbar { height: 4px; border-radius: 2px; background: #2a3446; margin-top: 3px; }
+  .hbar i { display: block; height: 100%; border-radius: 2px; background: var(--good); }
+  #feed { max-height: 150px; overflow-y: auto; font-size: 11px; color: var(--dim);
+    border-top: 1px solid #2a3446; padding-top: 6px; }
+  #feed .mgr { color: var(--accent); }
+  #gameover { position: fixed; inset: 0; z-index: 40; display: none; align-items: center;
+    justify-content: center; background: rgba(5,8,14,.82); }
+  #gameover .box { background: var(--panel); border: 1px solid var(--accent); border-radius: 16px;
+    padding: 40px 60px; text-align: center; }
+  #gameover .grade { font-size: 90px; color: var(--accent); font-weight: 700; }
+</style>
+</head>
+<body>
+  <div id="volume001"></div>
+
+  <div id="picker">
+    <h1>Lita <em>Hotels!</em></h1>
+    <p class="tag">pick a hotel — the manager AI is on duty, try not to wince</p>
+    <div id="cards"></div>
+  </div>
+
+  <div id="hud">
+    <header><h2 id="hotel-name">—</h2><div class="clock" id="clock">06:00</div></header>
+    <div id="meters">
+      <div class="meter"><div class="v" id="m-happy">–</div><div class="l">happiness</div></div>
+      <div class="meter"><div class="v" id="m-points">–</div><div class="l">points</div></div>
+      <div class="meter"><div class="v" id="m-tasks">–</div><div class="l">open tasks</div></div>
+      <div class="meter"><div class="v" id="m-grade">–</div><div class="l">grade</div></div>
+    </div>
+    <div id="controls">
+      <button id="b-pause">pause</button>
+      <button id="b-speed">speed ×1</button>
+      <button id="b-llm">manager: heuristic</button>
+      <label>explode <input id="explode" type="range" min="0" max="9" step="0.5" value="0"></label>
+    </div>
+    <div id="tabs">
+      <button data-tab="tasks" class="on">tasks</button>
+      <button data-tab="crew">crew</button>
+      <button data-tab="guests">guests</button>
+    </div>
+    <div id="panel"></div>
+    <div id="feed"></div>
+  </div>
+
+  <div id="gameover"><div class="box">
+    <div style="color:var(--dim)">the day is done</div>
+    <div class="grade" id="final-grade">?</div>
+    <div id="final-line"></div>
+  </div></div>
+
+  <script type="module" src="/lita-game/web/app.js"></script>
+</body>
+</html>

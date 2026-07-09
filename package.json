@@ -1,0 +1,17 @@
+{
+  "name": "lita-game",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Lita Hotels! — procedurally generated hotels, simulated guests and robots, an LLM manager",
+  "scripts": {
+    "start": "node --preserve-symlinks server.js",
+    "headless": "node --preserve-symlinks headless.js",
+    "test": "node --preserve-symlinks --test 'test/*.test.js'"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.0",
+    "@orbitalfoundation/bus": "file:../orbital/orbital-bus/packages/bus",
+    "@orbitalfoundation/utils": "file:../orbital/orbital-bus/packages/utils",
+    "@orbitalfoundation/spatial": "file:../orbital/orbital-spatial"
+  }
+}

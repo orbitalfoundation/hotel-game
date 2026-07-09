@@ -1,0 +1,5 @@
+node_modules/
+deploy/dist/
+deploy/.api-token
+.DS_Store
+*.log

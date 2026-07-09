@@ -1,0 +1,10 @@
+:80 {
+	root * /srv/site
+	encode gzip
+	file_server
+
+	# the game is fully client-side; /api/manager only exists when the node
+	# server runs (local dev, or a future backend container on this VM).
+	# A 404 here makes the in-game Claude-manager toggle fall back to the
+	# heuristic manager, by design.
+}
