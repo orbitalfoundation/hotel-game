@@ -40,6 +40,42 @@ export function mountHud(world, llm) {
       document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b))
     }
 
+  // ---- floor picker: [all] [G] [1] [2] … hides floors above the pick -------
+  {
+    const row = document.createElement('div')
+    row.id = 'floors'
+    const mk = (label, mode) => {
+      const b = document.createElement('button')
+      b.textContent = label
+      if (mode === 'all') b.classList.add('on')
+      b.onclick = () => {
+        world.view.floorMode = mode
+        world.applyFloorMode()
+        row.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b))
+      }
+      row.appendChild(b)
+    }
+    const lbl = document.createElement('label')
+    lbl.textContent = 'floor'
+    row.appendChild(lbl)
+    mk('all', 'all')
+    for (let f = 0; f < world.layout.floors; f++) mk(f === 0 ? 'G' : String(f), f)
+    $('controls').after(row)
+  }
+
+  // ---- mobile: collapsible bottom sheet -----------------------------------
+  {
+    const grip = document.createElement('button')
+    grip.id = 'sheet-grip'
+    grip.textContent = '▾'
+    grip.onclick = () => {
+      const hud = $('hud')
+      hud.classList.toggle('min')
+      grip.textContent = hud.classList.contains('min') ? '▴' : '▾'
+    }
+    $('hud').prepend(grip)
+  }
+
   // ---- refresh -----------------------------------------------------------------
   const esc = s => String(s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))
 

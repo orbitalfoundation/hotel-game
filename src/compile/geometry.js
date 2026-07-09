@@ -178,11 +178,36 @@ export function compileGeometry(layout) {
     const f = { floor: a.floor }
     switch (a.kind) {
       case 'guest_room': {
-        // bed against the outside wall, dresser near the door
-        const bz = a.rect[1] < 10 || a.floor === 0 ? z + d * 0.3 : cz2
-        out.push(ent(null, 'cube', [x + w * 0.5, y + 0.3, z + d * 0.25], [1.7, 0.5, 2.1], 0xffffff, f))
-        out.push(ent(null, 'cube', [x + w * 0.5, y + 0.62, z + d * 0.14], [1.5, 0.22, 0.5], theme.accent, f))
-        out.push(ent(null, 'cube', [x + w * 0.18, y + 0.4, z + d * 0.6], [0.6, 0.8, 1.1], 0x7a5b3a, f))
+        // semantic placement: the bed backs onto the wall OPPOSITE the door
+        // (headboard + pillow against it), the dresser hugs the door wall
+        // off to the side of the doorway
+        const door = layout.portals.find(p =>
+          (p.a === a.id || p.b === a.id) && p.kind === 'door')
+        const side = !door ? 'N'
+          : Math.abs(door.at[1] - z) < 0.3 ? 'N'
+          : Math.abs(door.at[1] - (z + d)) < 0.3 ? 'S'
+          : Math.abs(door.at[0] - x) < 0.3 ? 'W' : 'E'
+        const BL = 2.1, BW = 1.7   // bed length (into room) and width
+        if (side === 'N' || side === 'S') {
+          const bedZ = side === 'N' ? z + d - BL / 2 - 0.15 : z + BL / 2 + 0.15
+          const pilZ = side === 'N' ? z + d - 0.4 : z + 0.4
+          out.push(ent(null, 'cube', [cx2, y + 0.3, bedZ], [BW, 0.5, BL], 0xffffff, f))
+          out.push(ent(null, 'cube', [cx2, y + 0.62, pilZ], [1.5, 0.22, 0.5], theme.accent, f))
+          // dresser on the door wall, shifted away from the doorway
+          const doorX = door ? door.at[0] : cx2
+          const dx = doorX < cx2 ? x + w - 0.55 : x + 0.55
+          const dz = side === 'N' ? z + 0.65 : z + d - 0.65
+          out.push(ent(null, 'cube', [dx, y + 0.4, dz], [0.9, 0.8, 1.1], 0x7a5b3a, f))
+        } else {
+          const bedX = side === 'W' ? x + w - BL / 2 - 0.15 : x + BL / 2 + 0.15
+          const pilX = side === 'W' ? x + w - 0.4 : x + 0.4
+          out.push(ent(null, 'cube', [bedX, y + 0.3, cz2], [BL, 0.5, BW], 0xffffff, f))
+          out.push(ent(null, 'cube', [pilX, y + 0.62, cz2], [0.5, 0.22, 1.5], theme.accent, f))
+          const doorZ = door ? door.at[1] : cz2
+          const dz = doorZ < cz2 ? z + d - 0.55 : z + 0.55
+          const dx = side === 'W' ? x + 0.65 : x + w - 0.65
+          out.push(ent(null, 'cube', [dx, y + 0.4, dz], [1.1, 0.8, 0.9], 0x7a5b3a, f))
+        }
         break
       }
       case 'front_desk':

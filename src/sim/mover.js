@@ -66,6 +66,8 @@ export function makeMover(world, agent, travelWorld) {
   return {
     get active() { return !!path },
     get blockedFor() { return waited },
+    // remaining waypoint positions — lets the view draw planned routes
+    get remaining() { return path ? path.slice(wpi).map(wp => wp.position) : null },
 
     setGoal(areaId) {
       const way = world.nav.find(agent.pos, agent.floor, areaId, travelWorld, world.rng)

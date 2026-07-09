@@ -114,6 +114,7 @@ export function makeRobots(world) {
       r.mover.cancel()
       if (r.task) { world.tasks.release(r.task.id); r.task = null }
       world.log(`DEAD ${r.id} battery flat in ${r.area}`)
+      world.toast(`${r.name} battery flat!`, r.pos, r.floor, 'bad')
       world.tasks.create({
         kind: 'fix', label: `${r.name} died in ${r.area} — needs a rescue`,
         area: r.area, floor: r.floor, pos: r.pos.slice(),
@@ -129,7 +130,9 @@ export function makeRobots(world) {
       r.stuckT = 0
       r.mover.cancel()
       if (r.task) { world.tasks.release(r.task.id); r.task = null }
-      world.log(`FAULT ${r.id} ${pick(rng, ['wheel jam', 'lidar glitch', 'confused by a rug', 'software tantrum'])} in ${r.area}`)
+      const why = pick(rng, ['wheel jam', 'lidar glitch', 'confused by a rug', 'software tantrum'])
+      world.log(`FAULT ${r.id} ${why} in ${r.area}`)
+      world.toast(`${r.name}: ${why}!`, r.pos, r.floor, 'bad')
       return
     }
 

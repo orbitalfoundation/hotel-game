@@ -178,6 +178,7 @@ export function makeGuests(world) {
                 p.state = 'to_room'
                 p.mover.setGoal(room)
                 world.log(`CHECKIN ${p.id} ${p.name} -> ${room}`)
+                world.toast(`${p.name} checking in!`, p.pos, p.floor)
               } else decay(0.15) // checked in but no room ready: misery
             }
           }
@@ -243,6 +244,7 @@ export function makeGuests(world) {
       p.walkout = true
       world.score.walkout(p)
       world.log(`WALKOUT ${p.id} ${p.name} storm out at ${hhmm(world.clock.t)}`)
+      world.toast(`${p.name} storm out!!`, p.pos, p.floor, 'bad')
       if (p.room) { rooms.get(p.room).status = 'dirty'; rooms.get(p.room).party = null; autoCleanTask(p.room) }
       const idx = checkinQueue.indexOf(p.id); if (idx >= 0) checkinQueue.splice(idx, 1)
       p.mover.cancel()

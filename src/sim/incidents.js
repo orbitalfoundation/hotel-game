@@ -35,6 +35,8 @@ export function makeIncidents(world) {
     cab.failed = true
     const stuck = cab.riders.size
     world.log(`BREAKDOWN elevator out of service${stuck ? ` with ${stuck} riders INSIDE` : ''}`)
+    world.toast(stuck ? `elevator down — ${stuck} trapped inside!` : 'elevator out of service!',
+      [cab.at[0], cab.y, cab.at[1]], Math.round(cab.y / world.layout.floorHeight), 'bad')
     world.tasks.create({
       kind: 'fix', label: `elevator broke down${stuck ? ' — guests trapped inside!' : ''}`,
       area: 'elevator-0', floor: cab.floor, pos: [cab.at[0], cab.y, cab.at[1]],
@@ -125,6 +127,7 @@ export function makeIncidents(world) {
       if (actor.floor === b.floor &&
           Math.hypot(actor.pos[0] - b.pos[0], actor.pos[2] - b.pos[2]) < 2.5) {
         world.score.caught()
+        world.toast('gotcha! sneak escorted out', b.pos, b.floor, 'good')
         return despawnBadActor(b, `CAUGHT ${b.id} escorted out by ${actor.id}`)
       }
     }

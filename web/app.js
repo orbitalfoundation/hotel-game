@@ -5,11 +5,14 @@
 import { createBus } from '@orbitalfoundation/bus'
 import { attach as attachSpatial } from '@orbitalfoundation/spatial'
 import { BRIEFS } from '/lita-game/src/grammar/briefs.js'
+import { compileLayout } from '/lita-game/src/compile/layout.js'
 import { compileGeometry, THEMES } from '/lita-game/src/compile/geometry.js'
 import { createHotelWorld } from '/lita-game/src/sim/world.js'
 import { makeHeuristicManager, makeLLMManager } from '/lita-game/src/sim/manager.js'
 import { setPos } from '/lita-game/src/sim/util.js'
 import { mountHud } from './hud.js'
+import { mountOverlay } from './overlay.js'
+import { mountDayNight } from './daynight.js'
 
 // ---- picker ----------------------------------------------------------------
 const cards = document.getElementById('cards')
@@ -41,14 +44,23 @@ async function start(brief) {
 
   // scene must exist before anything publishes a renderable (the world
   // spawns staff and robots the moment it's created)
-  const { compileLayout } = await import('/lita-game/src/compile/layout.js')
   const layout = compileLayout(brief)
   const theme = THEMES[brief.theme] || THEMES.default
   const [W, D] = layout.bounds
   const cx = W / 2, cz = D / 2
   const H = brief.floors * layout.floorHeight
 
-  // scene, camera, light
+  const sunEntity = { uuid: 'sun001', volume: {
+    geometry: 'light', light: 'directional',
+    intensity: theme.sun?.intensity ?? 1.0, color: 0xfff2e0,
+    shadow: { extent: Math.max(W, D) * 0.8 + 30, size: 2048, far: 900 },
+    target: [cx, 0, cz],
+    pose: { position: theme.sun?.position ?? [30, 60, 20] },
+  } }
+  const ambientEntity = { uuid: 'ambient001', volume: {
+    geometry: 'light', light: 'ambient', intensity: 0.55, color: 0xbfd0e8,
+    pose: { position: [0, 10, 0] },
+  } }
   const sceneEntities = [
     { uuid: 'scene001', volume: {
       geometry: 'scene', div: 'volume001',
@@ -63,21 +75,15 @@ async function start(brief) {
         love: [cx, H / 3, cz],
       },
     } },
-    { uuid: 'sun001', volume: {
-      geometry: 'light', light: 'directional',
-      intensity: theme.sun?.intensity ?? 1.0, color: 0xfff2e0,
-      pose: { position: theme.sun?.position ?? [30, 60, 20] },
-    } },
-    { uuid: 'ambient001', volume: {
-      geometry: 'light', light: 'ambient', intensity: 0.55, color: 0xbfd0e8,
-      pose: { position: [0, 10, 0] },
-    } },
+    sunEntity,
+    ambientEntity,
   ]
   await bus.resolve(sceneEntities)
 
   // world (sim truth) — spawns staff and robots, so the scene is ready now
   const world = createHotelWorld(bus, brief, { render: true, speed: 60 })
   window.lita.world = world
+  world.view.floorMode = 'all'
 
   // hotel geometry (L3)
   const geom = compileGeometry(world.layout)
@@ -93,34 +99,114 @@ async function start(brief) {
   const llm = makeLLMManager(world, { endpoint: '/api/manager', cadence: 9000 })
   world.llmManager = llm
 
+  const fh = world.layout.floorHeight
+  const floorShown = f =>
+    world.view.floorMode === 'all' || Math.round(f) <= world.view.floorMode
+
   // explode view: static geometry re-offsets when the slider moves;
-  // agents and cabs read world.view.explode every tick on their own
+  // agents, cabs, markers and trails read world.view.explode every tick
   world.applyExplode = () => {
     const e = world.view.explode
     for (const g of geom)
       setPos(g.volume.pose.position, g.volume.pose.position.x,
         g.lita.baseY + g.lita.floor * e, g.volume.pose.position.z)
-    for (const t of world.tasks.open())
-      if (t.marker) setPos(t.marker.volume.pose.position,
-        t.pos[0], t.pos[1] + 2.3 + t.floor * e, t.pos[2])
   }
 
-  // task markers bob, and respect the explode offset when created mid-game
-  const markerSync = {
-    id: 'marker-sync',
+  // floor isolation: hide static geometry above the picked floor (the
+  // classic dollhouse slice); dynamic things follow in the view listener
+  world.applyFloorMode = () => {
+    for (const g of geom) {
+      const node = g.volume.node
+      if (node) node.visible = floorShown(g.lita.floor)
+    }
+  }
+
+  // ---- planned-route trails -------------------------------------------------
+  const trails = new Map()
+  const trailFor = (id, color) => {
+    let t = trails.get(id)
+    if (!t) {
+      t = { uuid: `trail-${id}`, volume: {
+        geometry: 'line', points: [], rev: 0,
+        material: { color, opacity: 0.7, dashed: true, dashSize: 0.7, gapSize: 0.45 },
+      } }
+      trails.set(id, t)
+      bus.resolve(t)
+    }
+    return t
+  }
+  const setTrail = (t, pts) => {
+    t.volume.points = pts
+    t.volume.rev = (t.volume.rev || 0) + 1
+  }
+  const routePoints = (actor) => {
+    const rem = actor.mover.remaining
+    if (!rem || !rem.length) return []
+    const e = world.view.explode
+    const lift = p => [p[0], p[1] + Math.round(p[1] / fh) * e + 0.35, p[2]]
+    const here = [actor.pos[0], actor.pos[1] + (actor.floorContinuous ?? actor.floor) * e + 0.35, actor.pos[2]]
+    return [here, ...rem.map(lift)]
+  }
+
+  // ---- per-tick view sync: markers, visibility, trails -------------------------
+  const view = {
+    id: 'view-sync',
     resolve(event) {
       if (!event.tick) return
       const e = world.view.explode
       const t0 = performance.now() / 1000
+
+      // task markers bob (and respect explode + floor slice)
       for (const t of world.tasks.open())
-        if (t.marker) setPos(t.marker.volume.pose.position,
-          t.pos[0], t.pos[1] + 2.3 + t.floor * e + Math.sin(t0 * 3 + t.pos[0]) * 0.12, t.pos[2])
+        if (t.marker) {
+          setPos(t.marker.volume.pose.position,
+            t.pos[0], t.pos[1] + 2.3 + t.floor * e + Math.sin(t0 * 3 + t.pos[0]) * 0.12, t.pos[2])
+          if (t.marker.volume.node) t.marker.volume.node.visible = floorShown(t.floor)
+        }
+
+      // dynamic visibility per floor slice
+      const setVis = (entities, floor) => {
+        if (!entities) return
+        for (const ent of entities) {
+          const n = ent.volume?.node
+          if (n) n.visible = floorShown(floor)
+        }
+      }
+      for (const p of world.guests.parties.values())
+        for (const m of p.entities) setVis(m.pair, p.floorContinuous ?? p.floor)
+      for (const s of world.staff.staff.values()) setVis(s.entities, s.floorContinuous ?? s.floor)
+      for (const r of world.robots.robots.values()) setVis(r.entities, r.floorContinuous ?? r.floor)
+      for (const b of world.incidents.badActors.values()) setVis(b.entities, b.floorContinuous ?? b.floor)
+      for (const cab of world.systems.cabs.values())
+        setVis(cab.entities, cab.y / fh)
+
+      // trails: staff and robots on a job show where they're headed
+      const live = new Set()
+      const crew = [...world.staff.staff.values(), ...world.robots.robots.values()]
+      for (const a of crew) {
+        if (!a.task || !a.mover.active) continue
+        live.add(a.id)
+        const t = trailFor(a.id, a.color)
+        setTrail(t, floorShown(a.floorContinuous ?? a.floor) ? routePoints(a) : [])
+      }
+      for (const [id, t] of trails)
+        if (!live.has(id) && t.volume.points.length) setTrail(t, [])
     },
   }
-  markerSync.resolve.filter = { tick: true }
-  bus.register(markerSync)
+  view.resolve.filter = { tick: true }
+  bus.register(view)
 
-  // HUD
+  // cab explode offset rides the systems module's own sync
+  const cabSync = {
+    id: 'cab-sync',
+    resolve(event) { if (event.tick) world.systems.sync(world.view.explode) },
+  }
+  cabSync.resolve.filter = { tick: true }
+  bus.register(cabSync)
+
+  // in-world labels + day/night + HUD
+  mountOverlay(world, bus)
+  mountDayNight(world, bus, { theme, sunEntity, ambientEntity, layout })
   mountHud(world, llm)
 
   // go!

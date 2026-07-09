@@ -84,6 +84,36 @@ The big hotels grade B under the heuristic — that's the headroom the LLM
 manager is supposed to demonstrate. Next session: run Claude on
 palm-lagoon/hoyt-street with a key and compare.
 
+## Round 2 (same day, after playtest feedback)
+
+- **Repo:** pushed to github.com/orbitalfoundation/hotel-game (public).
+- **Wall-walking fixed** — the cause was `outdoor` being one giant rect
+  *containing* the building, so outdoor legs cut straight through walls.
+  Outdoors is now a ring of four strips with corner portals; people walk
+  around the building. (Indoor routing was already wall-safe: all areas are
+  convex rects, and within-area segments can't leave them.)
+- **Semantic furniture** — the bed now backs onto the wall opposite the
+  room's door (portal lookup in the geometry compiler), dresser beside the
+  door. General principle established: props read the portal graph.
+- **Floor picker** — HUD row [all][G][1][2]…; picking a floor hides all
+  static geometry above it (dollhouse slice) and the view-sync listener
+  hides dynamic actors/cabs/markers/labels on hidden floors each tick.
+- **Lighting** — extended orbital-volume: shadow config on lights, prims
+  cast/receive by default, and a `line` handler (see orbital-volume devlog
+  20260709-lines-lights-shadows.md). Scene runs `prettier` (ACES + soft
+  shadow maps); the sun orbits with the game clock (warm at golden hours,
+  cool moonlight + darkened sky after 20:00, fog/background lerped per theme).
+- **The 3D view is now a HUD** — `web/overlay.js` projects DOM labels
+  through the camera: persistent task callouts (urgency pulse, dashed when
+  assigned), transient toasts ("the Petrovs checking in!", "elevator down —
+  3 trapped inside!"), and hover cards on every person/robot. `web/app.js`
+  draws dashed planned-route trails for staff/robots on a job (from
+  `mover.remaining`). Found + fixed along the way: elevator cabs were never
+  visually synced (nothing called `systems.sync`).
+- **Mobile** — under 760px the HUD becomes a collapsible bottom sheet.
+- Verified throughout with Playwright-driven Chrome screenshots (day, night,
+  floor-isolated, mobile collapsed).
+
 ## Open threads
 
 - LLM manager not yet exercised against the real API (no credentials in

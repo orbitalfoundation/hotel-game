@@ -96,13 +96,24 @@ export function compileLayout(brief) {
   const portal = (a, b, floor, at, width = DOOR, kind = 'door') =>
     out.portals.push({ id: `portal-${pid++}`, a, b, floor, at, width, kind })
 
-  // Outdoor apron surrounding the building (10m margin), plus parking pad.
+  // Outdoors is a RING of strips around the footprint — never a rect that
+  // contains the building, or outdoor paths cut straight through the walls.
+  // 'outdoor' proper is the street side (the front strip); guests arrive
+  // and leave there.
   const MARGIN = 12
-  area('outdoor', 'outdoor', 0, [-MARGIN, -MARGIN, W + 2 * MARGIN, D + 2 * MARGIN])
+  area('outdoor', 'outdoor', 0, [-MARGIN, -MARGIN, W + 2 * MARGIN, MARGIN])
+  area('outdoor-back', 'outdoor', 0, [-MARGIN, D, W + 2 * MARGIN, MARGIN])
+  area('outdoor-west', 'outdoor', 0, [-MARGIN, 0, MARGIN, D])
+  area('outdoor-east', 'outdoor', 0, [W, 0, MARGIN, D])
+  portal('outdoor', 'outdoor-west', 0, [-MARGIN / 2, 0], MARGIN * 0.8, 'outdoor')
+  portal('outdoor', 'outdoor-east', 0, [W + MARGIN / 2, 0], MARGIN * 0.8, 'outdoor')
+  portal('outdoor-back', 'outdoor-west', 0, [-MARGIN / 2, D], MARGIN * 0.8, 'outdoor')
+  portal('outdoor-back', 'outdoor-east', 0, [W + MARGIN / 2, D], MARGIN * 0.8, 'outdoor')
   if (brief.parts.includes('parking')) {
     const [pw, pd] = size('parking')
-    area('parking', 'parking', 0, [-MARGIN, 0, pw, pd])
-    portal('parking', 'outdoor', 0, [-MARGIN + pw / 2, pd + 0.5], OPENING, 'outdoor')
+    // parking pad sits in the west strip; its south edge opens onto it
+    area('parking', 'parking', 0, [-MARGIN, 0, Math.min(pw, MARGIN), pd])
+    portal('parking', 'outdoor-west', 0, [-MARGIN + Math.min(pw, MARGIN) / 2, pd], OPENING, 'outdoor')
   }
   if (brief.parts.includes('porte_cochere')) {
     const [pw, pd] = size('porte_cochere')
@@ -200,8 +211,8 @@ export function compileLayout(brief) {
   // Staff door joining the two halls at the west end, and at the core
   portal('hall-0', 'service-hall-0', 0, [1.2, zAmenity + amenityD / 2], DOOR, 'staff_door')
   // Emergency exits: west end of guest hall, and loading exit from service hall
-  portal('hall-0', 'outdoor', 0, [0, zHall + HALL_W / 2], DOOR, 'emergency_exit')
-  portal('service-hall-0', 'outdoor', 0, [W, zService + SERVICE_HALL_W / 2], DOOR, 'service_exit')
+  portal('hall-0', 'outdoor-west', 0, [0, zHall + HALL_W / 2], DOOR, 'emergency_exit')
+  portal('service-hall-0', 'outdoor-east', 0, [W, zService + SERVICE_HALL_W / 2], DOOR, 'service_exit')
 
   // ---- upper floors ---------------------------------------------------------
   // Double-loaded corridor at the same z as the ground guest hall. Rooms

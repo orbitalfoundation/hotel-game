@@ -39,6 +39,13 @@ export function createHotelWorld(bus, brief, { render = false, speed = 60 } = {}
       world.events.push({ t: world.clock.t, msg })
       if (world.events.length > 250) world.events.shift()
     },
+    toasts: [],
+    // a positioned, transient in-world callout ("the Hoyts checking in!")
+    toast(msg, pos, floor = 0, kind = 'info') {
+      if (!world.render || !pos) return
+      world.toasts.push({ msg, pos: [pos[0], pos[1], pos[2]], floor, kind, age: 0 })
+      if (world.toasts.length > 14) world.toasts.shift()
+    },
     // every actor that can catch a sneak
     securityActors() {
       const out = []

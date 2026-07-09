@@ -80,6 +80,45 @@
   #gameover .box { background: var(--panel); border: 1px solid var(--accent); border-radius: 16px;
     padding: 40px 60px; text-align: center; }
   #gameover .grade { font-size: 90px; color: var(--accent); font-weight: 700; }
+
+  /* ---- floor picker ---- */
+  #floors { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  #floors label { font-size: 11px; color: var(--dim); margin-right: 2px; }
+  #floors button { background: #1d2635; color: var(--ink); border: 1px solid #2a3446;
+    border-radius: 6px; min-width: 30px; padding: 3px 6px; cursor: pointer; font-size: 12px; }
+  #floors button.on { border-color: var(--accent); color: var(--accent); }
+
+  /* ---- in-world overlay ---- */
+  #overlay { position: fixed; inset: 0; z-index: 15; pointer-events: none; overflow: hidden; }
+  #overlay .tag { position: absolute; top: 0; left: 0; will-change: transform;
+    font-size: 11px; line-height: 1.25; white-space: nowrap;
+    padding: 3px 8px; border-radius: 10px; transform-origin: 0 0;
+    margin-left: -8px; margin-top: -10px; }
+  #overlay .task { background: rgba(16,20,28,.85); border: 1px solid #4a5568; color: var(--ink); }
+  #overlay .task.urgent { border-color: var(--bad); color: #ffd7d7;
+    animation: pulse 1s infinite; }
+  #overlay .task.assigned { border-style: dashed; opacity: .8; }
+  #overlay .toast { background: rgba(255,180,84,.14); border: 1px solid var(--accent);
+    color: var(--accent); font-weight: 600; }
+  #overlay .toast.bad { border-color: var(--bad); color: var(--bad); background: rgba(248,113,113,.12); }
+  #overlay .toast.good { border-color: var(--good); color: var(--good); background: rgba(74,222,128,.12); }
+  #overlay .tooltip { background: rgba(10,13,20,.94); border: 1px solid var(--accent);
+    color: var(--ink); z-index: 2; }
+  @keyframes pulse { 50% { opacity: .55; } }
+
+  /* ---- mobile: HUD becomes a collapsible bottom sheet ---- */
+  #sheet-grip { display: none; }
+  @media (max-width: 760px) {
+    #hud { top: auto; bottom: 0; left: 0; right: 0; width: 100%; height: 46vh;
+      border-right: none; border-top: 1px solid #2a3446; border-radius: 14px 14px 0 0;
+      transition: height .2s; }
+    #hud.min { height: 124px; overflow: hidden; }
+    #hud.min > :not(#sheet-grip):not(header):not(#meters) { display: none; }
+    #sheet-grip { display: block; position: absolute; top: 6px; right: 10px;
+      background: none; border: none; color: var(--dim); font-size: 16px; cursor: pointer; }
+    #picker h1 { font-size: 34px; }
+    .card { width: 44%; }
+  }
 </style>
 </head>
 <body>
