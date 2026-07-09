@@ -44,7 +44,7 @@ export function makeRobots(world) {
     r.mover = makeMover(world, r, 'robot')
     robots.set(id, r)
     if (world.render) {
-      r.entities = robotEntities(id, def.color, pos)
+      r.entities = robotEntities(id, kind, def.color, pos)
       world.bus.resolve(r.entities)
     }
     return r

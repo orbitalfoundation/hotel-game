@@ -165,6 +165,25 @@ export function makeNavGraph(layout) {
     return [x + m + rng() * (w - 2 * m), yOf(a.floor), z + m + rng() * (d - 2 * m)]
   }
 
+  // A doorway waypoint sits exactly on the wall line, so walking door-to-
+  // door along one wall would run *inside* the wall (and bodies clip its
+  // face). Give each portal an approach point inset into the area on each
+  // side: travel parallels walls at body distance and crossings pass
+  // perpendicular through the door center.
+  const INSET = 0.55
+  function insetPoint(portalNode, areaId) {
+    const a = areasById.get(areaId)
+    if (!a) return null
+    const [ax, az, w, d] = a.rect
+    const [px, , pz] = portalNode.position
+    const y = portalNode.position[1]
+    if (Math.abs(pz - az) < 0.35) return [px, y, az + Math.min(INSET, d / 3)]
+    if (Math.abs(pz - (az + d)) < 0.35) return [px, y, az + d - Math.min(INSET, d / 3)]
+    if (Math.abs(px - ax) < 0.35) return [ax + Math.min(INSET, w / 3), y, pz]
+    if (Math.abs(px - (ax + w)) < 0.35) return [ax + w - Math.min(INSET, w / 3), y, pz]
+    return null
+  }
+
   // find: from an arbitrary position to a target area. Returns waypoints
   // [{ position, area, kind, via }] ending inside the target.
   function find(fromPos, floor, toAreaId, world, rng) {
@@ -175,15 +194,35 @@ export function makeNavGraph(layout) {
     const hops = route(here.id, toAreaId, world)
     if (!hops) return null
     const way = []
-    for (const h of hops) {
+    let prevArea = here.id
+    for (let i = 0; i < hops.length; i++) {
+      const h = hops[i]
       const isTarget = h.node.id === toAreaId
-      way.push({
-        position: isTarget ? randomPointIn(toAreaId, rng) : h.node.position.slice(),
+      const base = {
         area: h.node.kind === 'portal' ? (h.via?.area ?? null) : h.node.id,
         node: h.node.id,
         kind: h.node.kind,
         via: h.via?.kind || 'walk',
-      })
+      }
+      if (h.node.kind === 'portal' && base.via === 'walk') {
+        // area after the door = the area of the edge leaving this portal
+        const next = hops[i + 1]
+        const afterArea = next
+          ? (next.node.kind === 'portal' ? next.via?.area : next.node.id)
+          : toAreaId
+        const inA = insetPoint(h.node, prevArea)
+        const inB = insetPoint(h.node, afterArea)
+        if (inA) way.push({ ...base, position: inA })
+        way.push({ ...base, position: h.node.position.slice() })
+        if (inB) way.push({ ...base, area: afterArea, position: inB })
+      } else {
+        way.push({
+          ...base,
+          position: isTarget ? randomPointIn(toAreaId, rng) : h.node.position.slice(),
+        })
+      }
+      if (base.area) prevArea = base.area
+      if (h.node.kind !== 'portal') prevArea = h.node.id
     }
     return way
   }

@@ -277,6 +277,34 @@ export function compileGeometry(layout) {
     }
   }
 
+  // ---- invisible shadow roofs -----------------------------------------------
+  // One per floor: a colorWrite:false slab that casts shadow but draws
+  // nothing, so interiors read as *inside* (no dramatic sun shadows from
+  // hallway walls and furniture) while the building still throws its
+  // massing shadow on the ground. The floor picker disables the roofs of
+  // ghosted floors so the picked floor doesn't sit in their darkness.
+  for (let f = 0; f < layout.floors; f++) {
+    const floorAreas = layout.areas.filter(a => a.floor === f && !OUTDOORISH.has(a.kind))
+    if (!floorAreas.length) continue
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity
+    for (const a of floorAreas) {
+      x0 = Math.min(x0, a.rect[0]); z0 = Math.min(z0, a.rect[1])
+      x1 = Math.max(x1, a.rect[0] + a.rect[2]); z1 = Math.max(z1, a.rect[1] + a.rect[3])
+    }
+    out.push({
+      uuid: `shadow-roof-${f}`,
+      lita: { geom: true, floor: f, shadowRoof: true },
+      volume: {
+        geometry: 'cube', static: true,
+        material: { colorWrite: false, depthWrite: false },
+        pose: {
+          position: { x: (x0 + x1) / 2, y: yOf(f) + WALL_H + 0.06, z: (z0 + z1) / 2 },
+          scale: { x: x1 - x0, y: 0.08, z: z1 - z0 },
+        },
+      },
+    })
+  }
+
   // ---- elevator / dumbwaiter shaft markers ---------------------------------
   for (const v of layout.verticals) {
     if (v.kind === 'stairs') continue

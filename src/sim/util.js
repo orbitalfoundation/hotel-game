@@ -76,22 +76,34 @@ export function personEntities(id, color, pos, scale = 1) {
   return [body, head]
 }
 
-export function robotEntities(id, color, pos) {
-  return [{
-    uuid: `${id}-body`, lita: { actor: id },
+// Robots must never read as people: each kind gets a machine silhouette.
+// cleaning = low roomba disk + sensor dome, delivery = cart + parcel,
+// security = tall dark column + red eye. Each part carries its own y
+// offset (lita.dy) so syncRobot stays generic.
+export function robotEntities(id, kind, color, pos) {
+  const parts = []
+  const add = (geometry, dy, color2, { scale, props } = {}) => parts.push({
+    uuid: `${id}-p${parts.length}`, lita: { actor: id, dy },
     volume: {
-      geometry: 'cube', material: { color },
-      pose: { position: { x: pos[0], y: pos[1] + 0.3, z: pos[2] },
-              scale: { x: 0.55, y: 0.6, z: 0.55 } },
+      geometry, ...(props ? { props } : {}),
+      material: { color: color2 },
+      pose: {
+        position: { x: pos[0], y: pos[1] + dy, z: pos[2] },
+        ...(scale ? { scale: { x: scale[0], y: scale[1], z: scale[2] } } : {}),
+      },
     },
-  }, {
-    uuid: `${id}-eye`, lita: { actor: id },
-    volume: {
-      geometry: 'sphere', material: { color: 0x9ff0e8 },
-      pose: { position: { x: pos[0], y: pos[1] + 0.66, z: pos[2] },
-              scale: { x: 0.09, y: 0.09, z: 0.09 } },
-    },
-  }]
+  })
+  if (kind === 'cleaning') {
+    add('cylinder', 0.13, color, { props: [0.44, 0.48, 0.24, 18, 1] })
+    add('sphere', 0.3, 0x9ff0e8, { scale: [0.15, 0.09, 0.15] })
+  } else if (kind === 'security') {
+    add('cylinder', 0.62, color, { props: [0.15, 0.3, 1.24, 12, 1] })
+    add('sphere', 1.28, 0xff5555, { scale: [0.1, 0.1, 0.1] })
+  } else { // delivery
+    add('cube', 0.34, color, { scale: [0.5, 0.68, 0.72] })
+    add('cube', 0.79, 0xd9c9a8, { scale: [0.34, 0.22, 0.42] })
+  }
+  return parts
 }
 
 // Mutate a (possibly live-bound three.js) pose position.
@@ -109,7 +121,6 @@ export function syncPerson(entities, pos, yExtra = 0, scale = 1) {
   if (head) setPos(head.volume.pose.position, pos[0], pos[1] + yExtra + 1.42 * scale, pos[2])
 }
 export function syncRobot(entities, pos, yExtra = 0) {
-  const [body, eye] = entities
-  setPos(body?.volume.pose.position, pos[0], pos[1] + yExtra + 0.3, pos[2])
-  if (eye) setPos(eye.volume.pose.position, pos[0], pos[1] + yExtra + 0.66, pos[2])
+  for (const e of entities || [])
+    setPos(e.volume.pose.position, pos[0], pos[1] + yExtra + (e.lita?.dy ?? 0), pos[2])
 }

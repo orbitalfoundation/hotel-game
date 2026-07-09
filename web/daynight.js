@@ -6,7 +6,7 @@
 
 import { Color } from 'three'
 
-export function mountDayNight(world, bus, { theme, sunEntity, ambientEntity, layout }) {
+export function mountDayNight(world, bus, { theme, sunEntity, ambientEntity, layout, muted = false }) {
   const [W, D] = layout.bounds
   const cx = W / 2, cz = D / 2
   const R = Math.max(W, D) * 1.6 + 60
@@ -33,9 +33,16 @@ export function mountDayNight(world, bus, { theme, sunEntity, ambientEntity, lay
       const h = world.clock.t / 3600
       // daylight arc 06:00 → 20:00
       const arc = Math.PI * (h - 6) / 14
-      const daylight = h < 6 || h > 20 ? 0 : Math.max(0, Math.sin(arc))
+      let daylight = h < 6 || h > 20 ? 0 : Math.max(0, Math.sin(arc))
+      // muted (underwater): a faint blue shimmer at most; interior lights
+      // carry the scene
+      if (muted) daylight *= 0.35
 
-      if (daylight > 0) {
+      if (muted) {
+        sun.position.set(cx, R * 0.8, cz + 10)
+        sun.intensity = 0.15 + 0.3 * daylight
+        sun.color.set(0x9fd8e8)
+      } else if (daylight > 0) {
         sun.position.set(cx + Math.cos(arc) * R, Math.max(10, Math.sin(arc) * R * 0.7), cz + D * 0.9)
         sun.intensity = 0.25 + 1.05 * daylight
         sun.color.copy(daySun).lerp(goldSun, daylight < 0.35 ? 1 - daylight / 0.35 : 0)
@@ -45,7 +52,8 @@ export function mountDayNight(world, bus, { theme, sunEntity, ambientEntity, lay
         sun.intensity = 0.14
         sun.color.copy(moon)
       }
-      amb.intensity = 0.09 + 0.55 * daylight
+      // underwater has no real night — the station's own lighting dominates
+      amb.intensity = muted ? 0.34 + 0.22 * daylight : 0.09 + 0.55 * daylight
 
       bg.copy(nightBg).lerp(dayBg, daylight)
       if (surface.scene.background?.isColor) surface.scene.background.copy(bg)

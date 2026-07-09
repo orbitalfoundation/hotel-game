@@ -26,13 +26,10 @@ export function mountOverlay(world, bus) {
 
   const surface = () => bus.volume?._surfaces?.volume001
 
-  const floorShown = f =>
-    world.view.floorMode === 'all' || Math.round(f) <= world.view.floorMode
-
-  // world position -> screen, or null if behind the camera / hidden floor
+  // world position -> screen, or null if behind the camera
   function project(pos, floor) {
     const s = surface()
-    if (!s?.camera || !floorShown(floor)) return null
+    if (!s?.camera) return null
     const e = world.view.explode
     v.set(pos[0], pos[1] + floor * e, pos[2]).project(s.camera)
     if (v.z > 1) return null

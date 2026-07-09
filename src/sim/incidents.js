@@ -104,17 +104,23 @@ export function makeIncidents(world) {
   }
 
   function stepBadActor(b, dt) {
-    const status = b.mover.step(dt)
+    b.mover.step(dt)
     b.mischiefT -= dt
     b.leaveT -= dt
     if (b.leaveT <= 0)
       return despawnBadActor(b, `SNEAK ${b.id} slipped away before anyone noticed`)
-    if (!b.mover.active || status === 'arrived') {
-      // pick somewhere to prowl — service areas preferred, naturally
-      const targets = world.layout.areas.filter(a =>
-        ['service_corridor', 'kitchen', 'storage', 'security_office', 'corridor', 'lobby']
-          .includes(a.kind))
-      b.mover.setGoal(pick(rng, targets).id)
+    // prowl with a dwell between goals (never re-pick every tick, and never
+    // the area they're already in — that re-randomized the target point
+    // each frame and drew a whirling route line)
+    if (!b.mover.active) {
+      b.prowlT = (b.prowlT ?? 0) - dt
+      if (b.prowlT <= 0) {
+        const targets = world.layout.areas.filter(a =>
+          ['service_corridor', 'kitchen', 'storage', 'security_office', 'corridor', 'lobby']
+            .includes(a.kind) && a.id !== b.area)
+        b.mover.setGoal(pick(rng, targets).id)
+        b.prowlT = 3 + rng() * 5
+      }
     }
     if (b.mischiefT <= 0) {
       b.mischiefT = 25 + rng() * 25

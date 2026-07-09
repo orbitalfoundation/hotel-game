@@ -13,6 +13,7 @@ import { setPos } from '/lita-game/src/sim/util.js'
 import { mountHud } from './hud.js'
 import { mountOverlay } from './overlay.js'
 import { mountDayNight } from './daynight.js'
+import { mountAmbient } from './ambient.js'
 
 // ---- picker ----------------------------------------------------------------
 const cards = document.getElementById('cards')
@@ -112,12 +113,25 @@ async function start(brief) {
         g.lita.baseY + g.lita.floor * e, g.volume.pose.position.z)
   }
 
-  // floor isolation: hide static geometry above the picked floor (the
-  // classic dollhouse slice); dynamic things follow in the view listener
+  // floor slicing affects ONLY the architecture: floors above the pick go
+  // ghostly transparent; people, robots, cabs, markers and labels always
+  // stay visible
+  const GHOST = 0.10
   world.applyFloorMode = () => {
     for (const g of geom) {
       const node = g.volume.node
-      if (node) node.visible = floorShown(g.lita.floor)
+      if (!node?.material) continue
+      // shadow roofs never draw — only their shadow toggles with the slice
+      if (g.lita.shadowRoof) { node.castShadow = floorShown(g.lita.floor); continue }
+      if (!g.lita.mat0) g.lita.mat0 = {
+        opacity: node.material.opacity, transparent: node.material.transparent,
+      }
+      const ghosted = !floorShown(g.lita.floor)
+      node.material.transparent = ghosted ? true : g.lita.mat0.transparent
+      node.material.opacity = ghosted ? GHOST : g.lita.mat0.opacity
+      node.material.depthWrite = !ghosted
+      node.material.needsUpdate = true
+      node.castShadow = !ghosted
     }
   }
 
@@ -144,8 +158,19 @@ async function start(brief) {
     if (!rem || !rem.length) return []
     const e = world.view.explode
     const lift = p => [p[0], p[1] + Math.round(p[1] / fh) * e + 0.35, p[2]]
-    const here = [actor.pos[0], actor.pos[1] + (actor.floorContinuous ?? actor.floor) * e + 0.35, actor.pos[2]]
-    return [here, ...rem.map(lift)]
+    const raw = [
+      [actor.pos[0], actor.pos[1] + (actor.floorContinuous ?? actor.floor) * e + 0.35, actor.pos[2]],
+      ...rem.map(lift),
+    ]
+    // floor changes ride a shaft, not a diagonal: insert a vertical riser
+    // at the destination's x/z whenever consecutive points change level
+    const pts = [raw[0]]
+    for (let i = 1; i < raw.length; i++) {
+      const a = pts[pts.length - 1], b = raw[i]
+      if (Math.abs(b[1] - a[1]) > 1.2) pts.push([b[0], a[1], b[2]])
+      pts.push(b)
+    }
+    return pts
   }
 
   // ---- per-tick view sync: markers, visibility, trails -------------------------
@@ -156,41 +181,31 @@ async function start(brief) {
       const e = world.view.explode
       const t0 = performance.now() / 1000
 
-      // task markers bob (and respect explode + floor slice)
+      // task markers bob (people/markers stay visible on every floor slice)
       for (const t of world.tasks.open())
-        if (t.marker) {
-          setPos(t.marker.volume.pose.position,
-            t.pos[0], t.pos[1] + 2.3 + t.floor * e + Math.sin(t0 * 3 + t.pos[0]) * 0.12, t.pos[2])
-          if (t.marker.volume.node) t.marker.volume.node.visible = floorShown(t.floor)
-        }
+        if (t.marker) setPos(t.marker.volume.pose.position,
+          t.pos[0], t.pos[1] + 2.3 + t.floor * e + Math.sin(t0 * 3 + t.pos[0]) * 0.12, t.pos[2])
 
-      // dynamic visibility per floor slice
-      const setVis = (entities, floor) => {
-        if (!entities) return
-        for (const ent of entities) {
-          const n = ent.volume?.node
-          if (n) n.visible = floorShown(floor)
-        }
-      }
+      // trails: everyone in motion shows where they're headed
+      const moving = new Map()
+      for (const s of world.staff.staff.values()) moving.set(s.id, s)
+      for (const r of world.robots.robots.values()) moving.set(r.id, r)
       for (const p of world.guests.parties.values())
-        for (const m of p.entities) setVis(m.pair, p.floorContinuous ?? p.floor)
-      for (const s of world.staff.staff.values()) setVis(s.entities, s.floorContinuous ?? s.floor)
-      for (const r of world.robots.robots.values()) setVis(r.entities, r.floorContinuous ?? r.floor)
-      for (const b of world.incidents.badActors.values()) setVis(b.entities, b.floorContinuous ?? b.floor)
-      for (const cab of world.systems.cabs.values())
-        setVis(cab.entities, cab.y / fh)
-
-      // trails: staff and robots on a job show where they're headed
-      const live = new Set()
-      const crew = [...world.staff.staff.values(), ...world.robots.robots.values()]
-      for (const a of crew) {
-        if (!a.task || !a.mover.active) continue
-        live.add(a.id)
-        const t = trailFor(a.id, a.color)
-        setTrail(t, floorShown(a.floorContinuous ?? a.floor) ? routePoints(a) : [])
+        if (p.state !== 'gone') moving.set(p.id, p)
+      for (const b of world.incidents.badActors.values())
+        moving.set(b.id, { ...b, color: 0x30343c })
+      for (const a of moving.values()) {
+        if (!a.mover.active) continue
+        setTrail(trailFor(a.id, a.color ?? 0x9aa3b2), routePoints(a))
       }
-      for (const [id, t] of trails)
-        if (!live.has(id) && t.volume.points.length) setTrail(t, [])
+      for (const [id, t] of trails) {
+        const a = moving.get(id)
+        if (!a) { // actor left the world: remove its line entirely
+          t.obliterate = true
+          bus.resolve(t)
+          trails.delete(id)
+        } else if (!a.mover.active && t.volume.points.length) setTrail(t, [])
+      }
     },
   }
   view.resolve.filter = { tick: true }
@@ -204,9 +219,13 @@ async function start(brief) {
   cabSync.resolve.filter = { tick: true }
   bus.register(cabSync)
 
-  // in-world labels + day/night + HUD
+  // in-world labels + day/night + theme ambience + HUD
   mountOverlay(world, bus)
-  mountDayNight(world, bus, { theme, sunEntity, ambientEntity, layout })
+  mountDayNight(world, bus, {
+    theme, sunEntity, ambientEntity, layout,
+    muted: brief.theme === 'underwater',   // sunlight barely reaches the seabed
+  })
+  mountAmbient(world, bus, { themeName: brief.theme, theme, layout })
   mountHud(world, llm)
 
   // go!
